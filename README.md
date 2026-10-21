@@ -87,6 +87,39 @@ mods/
 
 ---
 
+## AI Workflow (OPTIONAL)
+
+If you want to use AI tools like Claude, Kimi, or any other AI coding agent, follow this workflow.
+
+**Prompt:**
+
+```text
+Git clone https://github.com/SameerAlSahab/AppsPorter
+
+Necessary tools, keys, and scripts are already included in the repository.
+
+You are a professional Android reverse engineer. Your task is to maximize the success rate of porting the target OEM-specific application to the intended device without root.
+
+Analyze the repository structure, existing OEM patches, build scripts, and available tools before making changes.
+
+Here is the APK you need to port:
+[APKMIRROR LINK / DIRECT DOWNLOAD LINK / CHAT ATTACHMENT]
+
+If using APKMirror, check the scripts directory for available download scripts.
+
+Analyze the APK's dependencies, framework requirements, native libraries, and smali code. Identify compatibility issues and implement the necessary fixes using the existing AppsPorter patch structure.
+
+Create or update the appropriate OEM patch under apc/patches/. Include only the required framework dependencies, native libraries, and custom smali modifications. Avoid unnecessary firmware files or unrelated changes. Even though scripts does it all. But you have to recheck new smalis, remove dangerous checks that can lead the app to crash. 
+
+Build the ported APK, sign it, inspect the build output, and resolve any errors you can identify. Validate the final APK as thoroughly as the available tools allow.
+
+Document the changes made, dependencies added, known limitations, and any remaining issues.
+
+Do not claim that the port works unless it has been successfully tested on the intended device. If device testing is unavailable, clearly state what remains unverified. If the app not boots, as we have in-app logcat, ask user to give logs, then continue to edit more until success. 
+```
+
+___ 
+
 ## Licensing
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
