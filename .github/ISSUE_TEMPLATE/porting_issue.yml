@@ -1,0 +1,76 @@
+name: Porting Issue
+description: An app won't port, won't build, or won't run correctly after porting with an existing OEM patch.
+title: "[Porting]: "
+labels: ["porting"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Apps that require System UI privileges (Settings/SystemUI/overlay
+        apps) cannot be ported by this tool - see the README and
+        CONTRIBUTING.md before filing one of these.
+
+  - type: input
+    id: apk
+    attributes:
+      label: Source APK
+      description: Package name, version, and where it came from (stock firmware dump, APK mirror, etc.)
+      placeholder: "com.coloros.gallery3d 13.x, extracted from ColorOS 13 stock dump"
+    validations:
+      required: true
+
+  - type: input
+    id: oem-patch
+    attributes:
+      label: OEM patch used
+      placeholder: "oppo"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where does it fail?
+      options:
+        - Decompiling the APK
+        - Decompiling the framework jars
+        - Smali/class injection step
+        - Rebuilding the APK
+        - Signing
+        - Installs but crashes on launch
+        - Installs and launches but a feature is broken
+    validations:
+      required: true
+
+  - type: textarea
+    id: build-output
+    attributes:
+      label: Build output
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: missing-deps
+    attributes:
+      label: Missing classes / libraries, if any
+      description: |
+        Any `NoClassDefFoundError`, `ClassNotFoundException`, or
+        `UnsatisfiedLinkError` (missing .so) from the device log or the
+        in-app crash log (`appsporter_logs/`, via `--inject-logger`).
+      render: text
+
+  - type: textarea
+    id: scan-checks
+    attributes:
+      label: scan-checks output, if you ran it
+      description: Output of `./appsporter.sh --scan-checks <decompiled_dir>` on this app, if relevant.
+      render: shell
+
+  - type: input
+    id: device
+    attributes:
+      label: Target device / ROM
+      placeholder: "Redmi Note 12, crDroid 10, Android 14"
+    validations:
+      required: true

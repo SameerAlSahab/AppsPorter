@@ -1,0 +1,103 @@
+name: Bug Report
+description: Something in AppsPorter itself (scripts, build, signing, AI tooling) is broken.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: check `apc/patches/<oem>/` and `tools/` - most
+        "missing file" errors are a wrong path, not a missing dependency.
+
+  - type: input
+    id: target-app
+    attributes:
+      label: Target app
+      description: Package name and version of the app you were porting.
+      placeholder: "com.xiaomi.scanner 5.2.1"
+    validations:
+      required: true
+
+  - type: input
+    id: patch
+    attributes:
+      label: Patch used
+      description: Which folder under apc/patches/ (or custom patch) was selected.
+      placeholder: "xiaomi"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Workflow
+      options:
+        - "Manual (build_port.sh)"
+        - "AI-agent CLI (appsporter.sh)"
+        - "AI-agent assisted (Claude/Kimi/ChatGPT in-repo, via scripts/)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command you ran
+      render: bash
+      placeholder: "bash build_port.sh myapp.apk xiaomi"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: build-log
+    attributes:
+      label: Build/script output
+      description: Full terminal output of the failing command. Please don't trim it.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: On-device crash log, if the build succeeded but the app crashes
+      description: |
+        If you used `./appsporter.sh --inject-logger <decompiled_dir>` before
+        building, pull `appsporter_logs/app_log.txt` and the newest
+        `crash_*.txt` from the app's internal storage (any file manager with
+        "show app data" - no root/ADB needed) and paste them here.
+      render: text
+
+  - type: input
+    id: device
+    attributes:
+      label: Device / ROM
+      placeholder: "Pixel 7, LineageOS 21, Android 14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS you ran AppsPorter on
+      options:
+        - Linux
+        - macOS
+        - Windows (WSL)
+        - GitHub Actions
+        - Other
+    validations:
+      required: true

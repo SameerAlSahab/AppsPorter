@@ -1,0 +1,49 @@
+name: Feature Request
+description: Suggest a new porting module, smali patch, or AI-agent capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New OEM patch (apc/patches/)
+        - Porting pipeline (scripts/apktool.sh, make_apk.sh)
+        - AI-agent tooling (appsporter.sh, inject_logger.sh, scan_checks.sh)
+        - Documentation (AGENTS.md / CLAUDE.md / CONTRIBUTING.md / skill)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you unable to do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: As specific as you can - a new flag, a new mods/ convention, a new check pattern to scan for, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope-check
+    attributes:
+      label: Scope check
+      description: |
+        Does this touch Settings, SystemUI, or an overlay (RRO) app?
+        Those are explicitly out of scope - see CONTRIBUTING.md.
+      placeholder: "No - this is a regular launcher-style app."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
