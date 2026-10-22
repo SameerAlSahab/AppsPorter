@@ -41,6 +41,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.run_id }}
-          path: /home/runner/work/AppsPorter/AppsPorter/out/input_ported.apk
+          path: /home/runner/work/AppsPorter/AppsPorter/out/*.apk
           retention-days: 1
           if-no-files-found: error
