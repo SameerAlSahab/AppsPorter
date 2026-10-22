@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       apk_link:
-        description: "Download link"
+        description: "Download link (ex: APK Mirror)"
         required: true
         type: string
       patch:
-        description: "Patch"
+        description: "Patch Type (ex: samsung,oneplus,moto,xiaomi,oppo)"
         required: true
         type: string
       run_id:
-        description: "Correlation id sent by the website"
+        description: "Release ID (ex:oplusweather-cos17)"
         required: true
         type: string
 
