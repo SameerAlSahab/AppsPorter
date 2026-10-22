@@ -37,10 +37,21 @@ jobs:
       - name: Run port
         run: bash build_port.sh input.apk "${{ inputs.patch }}"
 
+      - name: Verify APK output
+        run: |
+          echo "Current directory:"
+          pwd
+
+          echo "APK files in expected directory:"
+          ls -lah /home/runner/work/AppsPorter/AppsPorter/out/ || true
+
+          echo "Searching for APK files:"
+          find /home/runner/work/AppsPorter/AppsPorter -type f -name "*.apk" -print
+
       - name: Upload result
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.run_id }}
-          path: /home/runner/work/AppsPorter/AppsPorter/out/*.apk
+          path: /home/runner/work/AppsPorter/AppsPorter/out/input_ported.apk
           retention-days: 1
           if-no-files-found: error
