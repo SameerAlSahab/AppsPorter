@@ -1,3 +1,4 @@
+
 name: Generate Port
 run-name: ${{ inputs.run_id }}
 
@@ -7,24 +8,32 @@ on:
       apk_link:
         description: "Download link"
         required: true
+        type: string
       patch:
         description: "Patch"
         required: true
+        type: string
       run_id:
         description: "Correlation id sent by the website"
         required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Install tools
         run: |
@@ -32,26 +41,49 @@ jobs:
           sudo apt-get install -y xmlstarlet
 
       - name: Download source APK
-        run: curl -L --fail "${{ inputs.apk_link }}" -o input.apk
+        env:
+          APK_LINK: ${{ inputs.apk_link }}
+        run: |
+          curl -fL --retry 3 "$APK_LINK" -o input.apk
+          test -s input.apk
 
       - name: Run port
-        run: bash build_port.sh input.apk "${{ inputs.patch }}"
+        env:
+          PATCH_NAME: ${{ inputs.patch }}
+        run: |
+          bash build_port.sh input.apk "$PATCH_NAME"
 
       - name: Verify APK output
         run: |
-          echo "Current directory:"
-          pwd
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Searching for generated APK files..."
+          find "$GITHUB_WORKSPACE" -type f -name "*.apk" -print
 
-          echo "APK files in expected directory:"
-          ls -lah /home/runner/work/AppsPorter/AppsPorter/out/ || true
+          APK_PATH="$GITHUB_WORKSPACE/out/input_ported.apk"
 
-          echo "Searching for APK files:"
-          find /home/runner/work/AppsPorter/AppsPorter -type f -name "*.apk" -print
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::Ported APK not found or empty: $APK_PATH"
+            exit 1
+          fi
 
-      - name: Upload result
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.run_id }}
-          path: /home/runner/work/AppsPorter/AppsPorter/out/input_ported.apk
-          retention-days: 1
-          if-no-files-found: error
+          echo "APK verified successfully."
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.run_id }}
+        run: |
+          APK_PATH="$GITHUB_WORKSPACE/out/input_ported.apk"
+          TAG="port-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          gh release create "$TAG" "$APK_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$RELEASE_NAME" \
+            --notes "Generated automatically by GitHub Actions.
+
+          Run ID: ${GITHUB_RUN_ID}
+          Attempt: ${GITHUB_RUN_ATTEMPT}" \
+            --latest=false
+
+          echo "Release created successfully."
+          echo "Tag: $TAG"
