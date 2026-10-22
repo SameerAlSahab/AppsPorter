@@ -38,7 +38,15 @@
 #
 # Requires: curl, GNU grep (with -P), sed
 #
-
+###################################################################################################
+# This is a standalone CLI. build_port.sh and appsporter.sh source every
+# scripts/*.sh, and running this file at that point would parse the caller's
+# arguments as its own (e.g. the patch name becomes the URL), replace the
+# caller's EXIT trap and enable set -e/-o pipefail in the caller.
+# So do nothing when sourced; running it directly is unchanged.
+if (return 0 2>/dev/null); then
+  return 0
+fi
 
 set -euo pipefail
 
