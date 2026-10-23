@@ -5,12 +5,12 @@ on:
   workflow_dispatch:
     inputs:
       apk_link:
-        description: "Download link (ex: APK Mirror)"
+        description: "APK download link (ex: APKMirror app page)"
         required: true
         type: string
 
       apk_name:
-        description: "Output APK name (ex: OplusWeather)"
+        description: "Output APK name (ex: OplusCalculator)"
         required: true
         type: string
 
@@ -20,7 +20,7 @@ on:
         type: string
 
       run_id:
-        description: "Release ID (ex: oplusweather-cos17)"
+        description: "Release ID (ex: oppocalculator-cos17)"
         required: true
         type: string
 
@@ -50,20 +50,53 @@ jobs:
         env:
           APK_LINK: ${{ inputs.apk_link }}
         run: |
-          curl -fL --retry 3 "$APK_LINK" -o input.apk
-          test -s input.apk
+          set -euo pipefail
+
+          APK_PATH="$GITHUB_WORKSPACE/input.apk"
+
+          if [[ "$APK_LINK" == *"apkmirror.com"* ]]; then
+            echo "Downloading APK using APKMirror downloader..."
+
+            if [ ! -f "scripts/apkmirror-dl.sh" ]; then
+              echo "::error::scripts/apkmirror-dl.sh not found."
+              exit 1
+            fi
+
+            chmod +x scripts/apkmirror-dl.sh
+
+            bash scripts/apkmirror-dl.sh \
+              -o "$APK_PATH" \
+              "$APK_LINK"
+          else
+            echo "Downloading APK using curl..."
+
+            curl -fL --retry 3 --retry-delay 2 \
+              "$APK_LINK" \
+              -o "$APK_PATH"
+          fi
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::APK download failed or the file is empty."
+            exit 1
+          fi
+
+          echo "APK downloaded successfully."
+          ls -lh "$APK_PATH"
 
       - name: Run port
         env:
           PATCH_NAME: ${{ inputs.patch }}
         run: |
+          set -euo pipefail
+
           bash build_port.sh input.apk "$PATCH_NAME"
 
-      - name: Verify APK Output
+      - name: Verify and Rename APK
         env:
           APK_NAME: ${{ inputs.apk_name }}
         run: |
-          echo "Workspace: $GITHUB_WORKSPACE"
+          set -euo pipefail
+
           echo "Searching for generated APK files..."
           find "$GITHUB_WORKSPACE" -type f -name "*.apk" -print
 
@@ -80,7 +113,8 @@ jobs:
              [ "$APK_NAME" = "." ] || \
              [ "$APK_NAME" = ".." ] || \
              [ -z "$APK_NAME" ]; then
-            echo "::error::Invalid APK name. Use only letters, numbers, dots, underscores, and hyphens."
+            echo "::error::Invalid APK name."
+            echo "Use only letters, numbers, dots, underscores, and hyphens."
             exit 1
           fi
 
@@ -92,6 +126,7 @@ jobs:
 
           echo "APK verified and renamed successfully."
           echo "Output: $NEW_APK_PATH"
+          echo "Size: $(du -h "$NEW_APK_PATH" | cut -f1)"
 
       - name: Create GitHub Release
         env:
@@ -100,6 +135,8 @@ jobs:
           PATCH_NAME: ${{ inputs.patch }}
           APK_NAME: ${{ inputs.apk_name }}
         run: |
+          set -euo pipefail
+
           APK_NAME="${APK_NAME%.apk}"
           APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
 
@@ -135,10 +172,7 @@ jobs:
 
           ### 📥 Installation
 
-          1. Download \`${APK_NAME}.apk\` from the Assets section below.
-          2. Install the APK on your compatible device.
-          3. Follow any additional instructions required by the selected patch.
-
+          1. Download \`${APK_NAME}.apk\` from the Assets section below and install it.
           ---
           *Generated automatically by GitHub Actions.*" \
             --latest=false
