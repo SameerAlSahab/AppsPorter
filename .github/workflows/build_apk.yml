@@ -1,5 +1,4 @@
-
-name: Generate Port
+name: Porting OEM Apps
 run-name: ${{ inputs.run_id }}
 
 on:
