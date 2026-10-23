@@ -8,12 +8,19 @@ on:
         description: "Download link (ex: APK Mirror)"
         required: true
         type: string
+
+      apk_name:
+        description: "Output APK name (ex: OplusWeather)"
+        required: true
+        type: string
+
       patch:
         description: "Patch Type (ex: samsung,oneplus,moto,xiaomi,oppo)"
         required: true
         type: string
+
       run_id:
-        description: "Release ID (ex:oplusweather-cos17)"
+        description: "Release ID (ex: oplusweather-cos17)"
         required: true
         type: string
 
@@ -52,7 +59,9 @@ jobs:
         run: |
           bash build_port.sh input.apk "$PATCH_NAME"
 
-      - name: Verify APK output
+      - name: Verify APK Output
+        env:
+          APK_NAME: ${{ inputs.apk_name }}
         run: |
           echo "Workspace: $GITHUB_WORKSPACE"
           echo "Searching for generated APK files..."
@@ -65,24 +74,78 @@ jobs:
             exit 1
           fi
 
-          echo "APK verified successfully."
+          APK_NAME="${APK_NAME%.apk}"
+
+          if [[ ! "$APK_NAME" =~ ^[a-zA-Z0-9._-]+$ ]] || \
+             [ "$APK_NAME" = "." ] || \
+             [ "$APK_NAME" = ".." ] || \
+             [ -z "$APK_NAME" ]; then
+            echo "::error::Invalid APK name. Use only letters, numbers, dots, underscores, and hyphens."
+            exit 1
+          fi
+
+          NEW_APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
+
+          if [ "$APK_PATH" != "$NEW_APK_PATH" ]; then
+            mv "$APK_PATH" "$NEW_APK_PATH"
+          fi
+
+          echo "APK verified and renamed successfully."
+          echo "Output: $NEW_APK_PATH"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NAME: ${{ inputs.run_id }}
+          PATCH_NAME: ${{ inputs.patch }}
+          APK_NAME: ${{ inputs.apk_name }}
         run: |
-          APK_PATH="$GITHUB_WORKSPACE/out/input_ported.apk"
+          APK_NAME="${APK_NAME%.apk}"
+          APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
+
           TAG="port-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
+          BUILD_DATE="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::Renamed APK not found or empty: $APK_PATH"
+            exit 1
+          fi
 
           gh release create "$TAG" "$APK_PATH" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$RELEASE_NAME" \
-            --notes "Generated automatically by GitHub Actions.
+            --notes "## 🚀 OEM App Port
 
-          Run ID: ${GITHUB_RUN_ID}
-          Attempt: ${GITHUB_RUN_ATTEMPT}" \
+          Successfully generated a ported APK using GitHub Actions.
+
+          ### 📦 Build Information
+
+          | Property | Value |
+          |----------|-------|
+          | Release ID | \`${RELEASE_NAME}\` |
+          | Patch Type | \`${PATCH_NAME}\` |
+          | APK File | \`${APK_NAME}.apk\` |
+          | APK Size | \`${APK_SIZE}\` |
+          | Build Date | \`${BUILD_DATE}\` |
+          | Run ID | \`${GITHUB_RUN_ID}\` |
+          | Run Attempt | \`${GITHUB_RUN_ATTEMPT}\` |
+          | Repository | [\`${GITHUB_REPOSITORY}\`](https://github.com/${GITHUB_REPOSITORY}) |
+          | Workflow | [View Build Logs](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |
+
+          ### 📥 Installation
+
+          1. Download \`${APK_NAME}.apk\` from the Assets section below.
+          2. Install the APK on your compatible device.
+          3. Follow any additional instructions required by the selected patch.
+
+          ---
+          *Generated automatically by GitHub Actions.*" \
             --latest=false
 
           echo "Release created successfully."
+          echo "Release ID: $RELEASE_NAME"
+          echo "Patch: $PATCH_NAME"
+          echo "APK: ${APK_NAME}.apk"
           echo "Tag: $TAG"
+          echo "APK Size: $APK_SIZE"
