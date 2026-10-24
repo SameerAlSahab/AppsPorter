@@ -108,6 +108,7 @@ jobs:
           fi
 
           APK_NAME="${APK_NAME%.apk}"
+          APK_NAME="$(echo "$APK_NAME" | xargs)"
 
           if [[ ! "$APK_NAME" =~ ^[a-zA-Z0-9._-]+$ ]] || \
              [ "$APK_NAME" = "." ] || \
