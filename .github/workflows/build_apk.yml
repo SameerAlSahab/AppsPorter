@@ -138,17 +138,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          RELEASE_NAME="$(echo "$RELEASE_NAME" | xargs)"
+          
           APK_NAME="${APK_NAME%.apk}"
+          APK_NAME="$(echo "$APK_NAME" | xargs)"
           APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
 
           TAG="port-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
           BUILD_DATE="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           if [ ! -s "$APK_PATH" ]; then
             echo "::error::Renamed APK not found or empty: $APK_PATH"
             exit 1
           fi
+
+          APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
 
           gh release create "$TAG" "$APK_PATH" \
             --repo "$GITHUB_REPOSITORY" \
