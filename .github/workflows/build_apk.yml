@@ -1,30 +1,45 @@
-name: Generate Port
+name: Porting OEM Apps
 run-name: ${{ inputs.run_id }}
 
 on:
   workflow_dispatch:
     inputs:
       apk_link:
-        description: "Download link"
+        description: "APK download link (ex: APKMirror app page)"
         required: true
+        type: string
+
+      apk_name:
+        description: "Output APK name (ex: OplusCalculator)"
+        required: true
+        type: string
+
       patch:
-        description: "Patch"
+        description: "Patch Type (ex: samsung,oneplus,moto,xiaomi,oppo)"
         required: true
+        type: string
+
       run_id:
-        description: "Correlation id sent by the website"
+        description: "Release ID (ex: oppocalculator-cos17)"
         required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Install tools
         run: |
@@ -32,14 +47,144 @@ jobs:
           sudo apt-get install -y xmlstarlet
 
       - name: Download source APK
-        run: curl -L --fail "${{ inputs.apk_link }}" -o input.apk
+        env:
+          APK_LINK: ${{ inputs.apk_link }}
+        run: |
+          set -euo pipefail
+
+          APK_PATH="$GITHUB_WORKSPACE/input.apk"
+
+          if [[ "$APK_LINK" == *"apkmirror.com"* ]]; then
+            echo "Downloading APK using APKMirror downloader..."
+
+            if [ ! -f "scripts/apkmirror-dl.sh" ]; then
+              echo "::error::scripts/apkmirror-dl.sh not found."
+              exit 1
+            fi
+
+            chmod +x scripts/apkmirror-dl.sh
+
+            bash scripts/apkmirror-dl.sh \
+              -o "$APK_PATH" \
+              "$APK_LINK"
+          else
+            echo "Downloading APK using curl..."
+
+            curl -fL --retry 3 --retry-delay 2 \
+              "$APK_LINK" \
+              -o "$APK_PATH"
+          fi
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::APK download failed or the file is empty."
+            exit 1
+          fi
+
+          echo "APK downloaded successfully."
+          ls -lh "$APK_PATH"
 
       - name: Run port
-        run: bash build_port.sh input.apk "${{ inputs.patch }}"
+        env:
+          PATCH_NAME: ${{ inputs.patch }}
+        run: |
+          set -euo pipefail
 
-      - name: Upload result
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.run_id }}
-          path: out/*.apk
-          retention-days: 1
+          bash build_port.sh input.apk "$PATCH_NAME"
+
+      - name: Verify and Rename APK
+        env:
+          APK_NAME: ${{ inputs.apk_name }}
+        run: |
+          set -euo pipefail
+
+          echo "Searching for generated APK files..."
+          find "$GITHUB_WORKSPACE" -type f -name "*.apk" -print
+
+          APK_PATH="$GITHUB_WORKSPACE/out/input_ported.apk"
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::Ported APK not found or empty: $APK_PATH"
+            exit 1
+          fi
+
+          APK_NAME="${APK_NAME%.apk}"
+          APK_NAME="$(echo "$APK_NAME" | xargs)"
+
+          if [[ ! "$APK_NAME" =~ ^[a-zA-Z0-9._-]+$ ]] || \
+             [ "$APK_NAME" = "." ] || \
+             [ "$APK_NAME" = ".." ] || \
+             [ -z "$APK_NAME" ]; then
+            echo "::error::Invalid APK name."
+            echo "Use only letters, numbers, dots, underscores, and hyphens."
+            exit 1
+          fi
+
+          NEW_APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
+
+          if [ "$APK_PATH" != "$NEW_APK_PATH" ]; then
+            mv "$APK_PATH" "$NEW_APK_PATH"
+          fi
+
+          echo "APK verified and renamed successfully."
+          echo "Output: $NEW_APK_PATH"
+          echo "Size: $(du -h "$NEW_APK_PATH" | cut -f1)"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.run_id }}
+          PATCH_NAME: ${{ inputs.patch }}
+          APK_NAME: ${{ inputs.apk_name }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_NAME="$(echo "$RELEASE_NAME" | xargs)"
+          
+          APK_NAME="${APK_NAME%.apk}"
+          APK_NAME="$(echo "$APK_NAME" | xargs)"
+          APK_PATH="$GITHUB_WORKSPACE/out/${APK_NAME}.apk"
+
+          TAG="port-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          BUILD_DATE="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::Renamed APK not found or empty: $APK_PATH"
+            exit 1
+          fi
+
+          APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
+
+          gh release create "$TAG" "$APK_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$RELEASE_NAME" \
+            --notes "## 🚀 OEM App Port
+
+          Successfully generated a ported APK using GitHub Actions.
+
+          ### 📦 Build Information
+
+          | Property | Value |
+          |----------|-------|
+          | Release ID | \`${RELEASE_NAME}\` |
+          | Patch Type | \`${PATCH_NAME}\` |
+          | APK File | \`${APK_NAME}.apk\` |
+          | APK Size | \`${APK_SIZE}\` |
+          | Build Date | \`${BUILD_DATE}\` |
+          | Run ID | \`${GITHUB_RUN_ID}\` |
+          | Run Attempt | \`${GITHUB_RUN_ATTEMPT}\` |
+          | Repository | [\`${GITHUB_REPOSITORY}\`](https://github.com/${GITHUB_REPOSITORY}) |
+          | Workflow | [View Build Logs](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |
+
+          ### 📥 Installation
+
+          1. Download \`${APK_NAME}.apk\` from the Assets section below and install it.
+          ---
+          *Generated automatically by GitHub Actions.*" \
+            --latest=false
+
+          echo "Release created successfully."
+          echo "Release ID: $RELEASE_NAME"
+          echo "Patch: $PATCH_NAME"
+          echo "APK: ${APK_NAME}.apk"
+          echo "Tag: $TAG"
+          echo "APK Size: $APK_SIZE"
