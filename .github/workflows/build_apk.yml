@@ -24,6 +24,12 @@ on:
         required: true
         type: string
 
+      ai:
+        description: "Extra: AI smali review of injected classes (true/false)"
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: write
 
@@ -86,10 +92,21 @@ jobs:
       - name: Run port
         env:
           PATCH_NAME: ${{ inputs.patch }}
+          AI_INPUT: ${{ inputs.ai }}
+          # optional: set a repo variable AI_API_URL to use another endpoint
+          AI_API_URL: ${{ vars.AI_API_URL }}
         run: |
           set -euo pipefail
 
-          bash build_port.sh input.apk "$PATCH_NAME"
+          PORT_ARGS=()
+          if [ "$AI_INPUT" = "true" ]; then
+            echo "AI smali review: ON"
+            PORT_ARGS+=(--ai)
+          else
+            echo "AI smali review: OFF"
+          fi
+
+          bash build_port.sh input.apk "$PATCH_NAME" "${PORT_ARGS[@]}"
 
       - name: Verify and Rename APK
         env:
@@ -135,6 +152,7 @@ jobs:
           RELEASE_NAME: ${{ inputs.run_id }}
           PATCH_NAME: ${{ inputs.patch }}
           APK_NAME: ${{ inputs.apk_name }}
+          AI_STATE: ${{ inputs.ai && 'on' || 'off' }}
         run: |
           set -euo pipefail
 
@@ -154,7 +172,12 @@ jobs:
 
           APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
 
-          gh release create "$TAG" "$APK_PATH" \
+          ASSETS=("$APK_PATH")
+          if [ -s "$GITHUB_WORKSPACE/out/ai_report.json" ]; then
+            ASSETS+=("$GITHUB_WORKSPACE/out/ai_report.json")
+          fi
+
+          gh release create "$TAG" "${ASSETS[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$RELEASE_NAME" \
             --notes "## 🚀 OEM App Port
@@ -167,6 +190,7 @@ jobs:
           |----------|-------|
           | Release ID | \`${RELEASE_NAME}\` |
           | Patch Type | \`${PATCH_NAME}\` |
+          | AI Review | \`${AI_STATE}\` |
           | APK File | \`${APK_NAME}.apk\` |
           | APK Size | \`${APK_SIZE}\` |
           | Build Date | \`${BUILD_DATE}\` |
