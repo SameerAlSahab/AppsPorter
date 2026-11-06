@@ -62,6 +62,7 @@ SYSTEM_PROMPT = (
     "Knox/root/permission/whitelist checks, isOPDevice, isSamsungDevice, isSupported and unlock flagship features if found."
     "DO NOT modify ordinary methods or unrelated application logic."
     "Most methods are fine - default to ok. Only change what is truly needed, with the smallest edit "
+    "Ensure all smali registers are valid (e.g., v0, v1, p0). Never output malformed register names like 8x0."
     "(bypass the check branch, return a safe value, swallow the failing call). Keep the exact .method "
     "line, a valid .locals/.registers count, valid labels and the .end method. Reply ONLY with compact "
     "one-line JSON, no markdown: {\"s\":\"ok\"} if fine, else "
@@ -236,8 +237,12 @@ def validate(old: Method, new_text: str):
         if m:
             defined.add(m.group(1))
             continue
-        bare = STRING_RE.sub('""', l)
+    bare = STRING_RE.sub('""', l)
         if not bare.startswith("."):
+            # Catch common LLM typos where hex/registers get mangled into things like 8x0, 0xv0, etc.
+            if re.search(r"\b\d+x\d+\b", bare) or re.search(r"\bv[vx]\b", bare):
+                return False, f"malformed register/token typo: {l}"
+
             for kind, num in REG_RE.findall(bare):
                 n = int(num)
                 if kind == "v" and loc is not None and n >= loc:
