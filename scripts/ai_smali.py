@@ -237,7 +237,7 @@ def validate(old: Method, new_text: str):
         if m:
             defined.add(m.group(1))
             continue
-    bare = STRING_RE.sub('""', l)
+        bare = STRING_RE.sub('""', l)
         if not bare.startswith("."):
             # Catch common LLM typos where hex/registers get mangled into things like 8x0, 0xv0, etc.
             if re.search(r"\b\d+x\d+\b", bare) or re.search(r"\bv[vx]\b", bare):
