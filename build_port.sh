@@ -35,7 +35,10 @@ fi
 
 
 PRINT_USAGE() {
-    LOG "Usage: ./build_port.sh <apk_file.apk> <patch_name>" 2
+    LOG "Usage: ./build_port.sh <apk_file.apk> <patch_name> [--ai] [--ai-dry] [--ai-jobs N]" 2
+    LOG "  --ai        extra: AI reviews injected smali methods and fixes crash-prone checks" 2
+    LOG "  --ai-dry    like --ai but only reports, changes nothing" 2
+    LOG "  --ai-jobs N parallel AI requests (default 200)" 2
     LOG ""
     LOG "Available patches in $PATCHES_DIR:" 2
 
@@ -79,6 +82,25 @@ USE_THREADS() {
 }
 
 THREAD_COUNT="$(USE_THREADS)"
+
+# Optional flags (can appear anywhere): --ai / --ai-dry / --ai-jobs N
+AI_ENABLED="${AI_ENABLED:-0}"
+AI_DRY_RUN="${AI_DRY_RUN:-0}"
+POSITIONAL_ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --ai)          AI_ENABLED=1 ;;
+        --ai-dry)      AI_ENABLED=1; AI_DRY_RUN=1 ;;
+        --ai-jobs)     shift; AI_JOBS="${1:-}" ;;
+        --ai-jobs=*)   AI_JOBS="${1#*=}" ;;
+        *)             POSITIONAL_ARGS+=("$1") ;;
+    esac
+    shift
+done
+set -- "${POSITIONAL_ARGS[@]}"
+
+case "$AI_ENABLED" in 1|true|TRUE|True|yes|on) AI_ENABLED=1 ;; *) AI_ENABLED=0 ;; esac
+export AI_ENABLED AI_DRY_RUN AI_JOBS
 
 TARGET_APK="$1"
 TARGET_PATCH="$2"

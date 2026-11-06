@@ -51,6 +51,10 @@ Usage:
                                                          Scan (and optionally auto-patch) Knox/signature/
                                                          compatibility checks
 
+  ./appsporter.sh --ai-review <decompiled_folder> [--dry]
+                                                         Extra: AI reviews every smali method in the folder
+                                                         (parallel) and fixes crash-prone checks. Needs python3.
+
 Settings, SystemUI and overlay (RRO) apps are refused by --inject-logger and
 --scan-checks - see CONTRIBUTING.md for why.
 USAGE
@@ -142,6 +146,15 @@ case "$1" in
     --scan-checks)
         CHECK_DEPS
         SCAN_CHECKS "${2:-}" "${3:-}"
+        ;;
+    --ai-review)
+        CHECK_DEPS
+        [ -d "${2:-}" ] || { LOGE "Usage: --ai-review <decompiled_folder> [--dry]" 2; exit 1; }
+        [ "${3:-}" = "--dry" ] && AI_DRY_RUN=1
+        mkdir -p "$ROOT/out"
+        find "$2"/smali* -name '*.smali' > "$ROOT/out/.ai_list.txt"
+        AI_REVIEW_SMALI "$2" "$ROOT/out/.ai_list.txt" "$ROOT/out/ai_backup"
+        rm -f "$ROOT/out/.ai_list.txt"
         ;;
     -h|--help)
         _USAGE
