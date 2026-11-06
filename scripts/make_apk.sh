@@ -265,16 +265,51 @@ if [ "${AI_ENABLED:-0}" = "1" ]; then
     AI_REVIEW_SMALI "$APK_DECOMPILE_DIR" "$AI_LIST" "$AI_BACKUP_DIR" "$OUTPUT_DIR/ai_report.json"
 fi
 
+# BUILD that also keeps apktool's output in a file (the AI repair step reads it)
+BUILD_LOG="$BUILD_TEMP_DIR/apktool_build.log"
+BUILD_AND_LOG() {
+    BUILD "$@" > "$BUILD_LOG" 2>&1
+    local st=$?
+    cat "$BUILD_LOG"
+    return $st
+}
+
 LOG "Rebuilding APK..." 2
-BUILD "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
+BUILD_AND_LOG "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
 BUILD_STATUS=$?
 
-# If AI edits broke compilation, undo them and build the plain port instead
+# apktool failed with --ai on: send the error log to the AI, it names the broken file, gets the method and fixes it.
+# Rebuild after every round, up to AI_FIX_ATTEMPTS rounds (default 3).
+if [ "$BUILD_STATUS" -ne 0 ] && [ "${AI_ENABLED:-0}" = "1" ] && [ "${AI_DRY_RUN:-0}" != "1" ]; then
+    AI_FIX_ROUNDS="${AI_FIX_ATTEMPTS:-3}"
+    AI_ROUND=1
+    while [ "$BUILD_STATUS" -ne 0 ] && [ "$AI_ROUND" -le "$AI_FIX_ROUNDS" ]; do
+        LOGW "apktool failed - sending the error log to AI (attempt $AI_ROUND/$AI_FIX_ROUNDS)..." 2
+        AI_REPAIR_SMALI "$APK_DECOMPILE_DIR" "$AI_BACKUP_DIR" "$BUILD_LOG" "$AI_ROUND" "$AI_FIX_ROUNDS" || break
+        rm -f "$UNSIGNED_APK"
+        LOG "Rebuilding APK after AI repair..." 2
+        BUILD_AND_LOG "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
+        BUILD_STATUS=$?
+        AI_ROUND=$((AI_ROUND + 1))
+    done
+    if [ -n "$(find "$AI_BACKUP_DIR" -type f -print -quit 2>/dev/null)" ]; then
+        AI_CHANGED=1
+    fi
+    [ "$BUILD_STATUS" -eq 0 ] && LOG "Build succeeded after AI repair." 2
+fi
+
+# AI could not get it to build -> undo every AI edit and build the plain port instead
 if [ "$BUILD_STATUS" -ne 0 ] && [ "$AI_CHANGED" -eq 1 ]; then
     LOGW "Build failed with AI edits - reverting them and rebuilding without AI..." 2
     AI_RESTORE_SMALI "$APK_DECOMPILE_DIR" "$AI_BACKUP_DIR"
     rm -f "$UNSIGNED_APK" "$OUTPUT_DIR/ai_report.json"
     BUILD "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
+    BUILD_STATUS=$?
+fi
+
+if [ "$BUILD_STATUS" -ne 0 ] || [ ! -f "$UNSIGNED_APK" ]; then
+    PRINT_BUILD_OUTCOME 1 "$(basename "$TARGET_APK")"
+    ABORT "apktool could not rebuild the APK."
 fi
 
 LOG "Signing final APK..." 2

@@ -35,10 +35,11 @@ fi
 
 
 PRINT_USAGE() {
-    LOG "Usage: ./build_port.sh <apk_file.apk> <patch_name> [--ai] [--ai-dry] [--ai-jobs N]" 2
+    LOG "Usage: ./build_port.sh <apk_file.apk> <patch_name> [--ai] [--ai-dry] [--ai-jobs N] [--ai-fix N]" 2
     LOG "  --ai        extra: AI reviews injected smali methods and fixes crash-prone checks" 2
     LOG "  --ai-dry    like --ai but only reports, changes nothing" 2
     LOG "  --ai-jobs N parallel AI requests (default 200)" 2
+    LOG "  --ai-fix N  if apktool fails, let the AI repair the broken smali up to N times (default 3)" 2
     LOG ""
     LOG "Available patches in $PATCHES_DIR:" 2
 
@@ -93,6 +94,8 @@ while [ $# -gt 0 ]; do
         --ai-dry)      AI_ENABLED=1; AI_DRY_RUN=1 ;;
         --ai-jobs)     shift; AI_JOBS="${1:-}" ;;
         --ai-jobs=*)   AI_JOBS="${1#*=}" ;;
+        --ai-fix)      shift; AI_FIX_ATTEMPTS="${1:-}" ;;
+        --ai-fix=*)    AI_FIX_ATTEMPTS="${1#*=}" ;;
         *)             POSITIONAL_ARGS+=("$1") ;;
     esac
     shift
@@ -100,7 +103,7 @@ done
 set -- "${POSITIONAL_ARGS[@]}"
 
 case "$AI_ENABLED" in 1|true|TRUE|True|yes|on) AI_ENABLED=1 ;; *) AI_ENABLED=0 ;; esac
-export AI_ENABLED AI_DRY_RUN AI_JOBS
+export AI_ENABLED AI_DRY_RUN AI_JOBS AI_FIX_ATTEMPTS
 
 TARGET_APK="$1"
 TARGET_PATCH="$2"

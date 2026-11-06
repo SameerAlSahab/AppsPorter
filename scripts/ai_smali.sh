@@ -55,3 +55,13 @@ AI_REVIEW_SMALI() {
 AI_RESTORE_SMALI() {
     python3 "$AI_PY" restore --root "$1" --backup "$2"
 }
+
+# AI_REPAIR_SMALI <decompiled_apk_dir> <backup_dir> <apktool_log> <attempt> <max_attempts>
+# apktool failed: the error log goes to the AI, it names the broken smali file(s) and fixes the method(s).
+# returns 0 when something was changed (go rebuild), non-zero when there is nothing more the AI can do.
+AI_REPAIR_SMALI() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    [ -f "$AI_PY" ] || return 1
+    mkdir -p "$2"
+    python3 "$AI_PY" repair --root "$1" --backup "$2" --log "$3" --attempt "$4" --max-attempts "$5"
+}
