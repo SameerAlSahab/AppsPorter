@@ -96,6 +96,10 @@ LOG "Scanning for missing OEM Framework Smali references..." 2
 
 COPIED_COUNT=0
 
+# every framework class we inject is listed here (used by the optional --ai review)
+INJECTED_LIST="$BUILD_TEMP_DIR/injected_smali.txt"
+: > "$INJECTED_LIST"
+
 
 if [ -d "$FW_JAR_DECOMPILE_DIR" ]; then
 
@@ -151,6 +155,7 @@ if [ -d "$FW_JAR_DECOMPILE_DIR" ]; then
             dest_file="$TARGET_NEW_SMALI_DIR/$rel_path"
             mkdir -p "$(dirname "$dest_file")"
             cp "$fw_smali_path" "$dest_file"
+            echo "$dest_file" >> "$INJECTED_LIST"
             LOG "Injected missing Smali: $rel_path" 4
             COPIED_COUNT=$((COPIED_COUNT + 1))
             EXISTING_SET["$rel_path"]=1
@@ -243,8 +248,34 @@ mkdir -p "$OUTPUT_DIR"
 UNSIGNED_APK="$BUILD_TEMP_DIR/unsigned_target.apk"
 FINAL_SIGNED_APK="$OUTPUT_DIR/$(basename "$TARGET_APK" .apk)_ported.apk"
 
+# ---- optional: AI review of the injected framework smali (--ai) ----
+AI_CHANGED=0
+AI_BACKUP_DIR="$BUILD_TEMP_DIR/ai_backup"
+if [ "${AI_ENABLED:-0}" = "1" ]; then
+    # classes supplied by the patch's mods/ folder are hand-written, only review the injected ones
+    AI_LIST="$BUILD_TEMP_DIR/ai_review_list.txt"
+    : > "$AI_LIST"
+    while IFS= read -r injected_file; do
+        [ -f "$injected_file" ] || continue
+        rel_inj="${injected_file#"$TARGET_NEW_SMALI_DIR"/}"
+        [ -f "$MODS_DIR/$rel_inj" ] && continue
+        echo "$injected_file" >> "$AI_LIST"
+    done < "$INJECTED_LIST"
+
+    AI_REVIEW_SMALI "$APK_DECOMPILE_DIR" "$AI_LIST" "$AI_BACKUP_DIR" "$OUTPUT_DIR/ai_report.json"
+fi
+
 LOG "Rebuilding APK..." 2
 BUILD "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
+BUILD_STATUS=$?
+
+# If AI edits broke compilation, undo them and build the plain port instead
+if [ "$BUILD_STATUS" -ne 0 ] && [ "$AI_CHANGED" -eq 1 ]; then
+    LOGW "Build failed with AI edits - reverting them and rebuilding without AI..." 2
+    AI_RESTORE_SMALI "$APK_DECOMPILE_DIR" "$AI_BACKUP_DIR"
+    rm -f "$UNSIGNED_APK" "$OUTPUT_DIR/ai_report.json"
+    BUILD "$APK_DECOMPILE_DIR" "$UNSIGNED_APK"
+fi
 
 LOG "Signing final APK..." 2
 SIGN_APK "$UNSIGNED_APK" "$FINAL_SIGNED_APK"
