@@ -63,6 +63,10 @@ SYSTEM_PROMPT = (
     "missing OEM services/system properties/hidden APIs, device-model/brand/ROM/region/"
     "Knox/root/permission/whitelist checks, isOPDevice, isSamsungDevice, isSupported and unlock flagship features if found. "
     "DO NOT modify ordinary methods or unrelated application logic. "
+    "Classes under miui/oplus/oppo/samsung/moto packages are ALREADY copied into the app: never treat them as missing and never replace them. "
+    "FALLBACK: if the method uses a class or member that cannot exist on a normal device (not android/java/kotlin and not one of those copied OEM classes), "
+    "NEUTRALIZE only that call: delete the invoke/new-instance/sget, and if a move-result follows, replace it with a safe default "
+    "(const/4 vN, 0x0 for int/boolean/null) so the method still returns a valid value. Never leave the missing class referenced. "
     "Most methods are fine - default to ok. Only change what is truly needed, with the smallest edit "
     "(bypass the check branch, return a safe value, swallow the failing call). "
     "Registers are only v0.. or p0..; a literal like 0x0 is valid ONLY where a literal belongs, never in a register slot. "
@@ -75,9 +79,9 @@ SYSTEM_PROMPT = (
 
 # methods containing these are reviewed first when we have to cap the amount
 SUSPICIOUS = re.compile(
-    r"throw|SecurityException|UnsupportedOperation|SystemProperties|getprop|System;->exit|"
+    r"SecurityException|UnsupportedOperation|SystemProperties|getprop|System;->exit|"
     r"killProcess|loadLibrary|Landroid/os/Build|checkPermission|checkCallingPermission|"
-    r"[Ss]ignature|[Kk]nox|isSupport|isCompatible|[Ww]hitelist|[Aa]llowList|isRoot|"
+    r"(?<!annotation/)[Ss]ignature|[Kk]nox|isSupport|isCompatible|[Ww]hitelist|[Aa]llowList|isRoot|"
     r"getSystemService|ServiceManager|SystemService|checkSelfPermission|Process;->",
 )
 
@@ -634,6 +638,9 @@ def review(args):
                 trivial += 1
                 continue
             m.score = len(SUSPICIOUS.findall(body))
+            if not args.all and m.score == 0:
+                trivial += 1  # no crash/check signal -> not worth an AI call (and cannot be "improved")
+                continue
             all_methods.append(m)
 
     all_methods.sort(key=lambda m: -m.score)

@@ -173,6 +173,9 @@ jobs:
           APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
 
           ASSETS=("$APK_PATH")
+          if [ -s "$GITHUB_WORKSPACE/out/classfix_report.json" ]; then
+            ASSETS+=("$GITHUB_WORKSPACE/out/classfix_report.json")
+          fi
           if [ -s "$GITHUB_WORKSPACE/out/ai_report.json" ]; then
             ASSETS+=("$GITHUB_WORKSPACE/out/ai_report.json")
           fi

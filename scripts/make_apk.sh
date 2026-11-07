@@ -120,12 +120,36 @@ if [ -d "$FW_JAR_DECOMPILE_DIR" ]; then
 
     declare -A VISITED=()
 
+    # OEM-only android.* classes (ExtraRingtone, MiuiConfiguration, ...) are real framework additions the app
+    # calls. Patches with only OEM jars (xiaomi/moto) can inject every android.* class they contain; patches
+    # with a full framework.jar (oppo/oneplus/samsung) also hold the whole stock tree, so there only
+    # OEM-named classes or those listed in <patch>/inject_android.txt are injected.
+    FW_IS_FULL=0
+    [ -f "$PATCH_FW_DIR/framework.jar" ] && FW_IS_FULL=1
+    OEM_ANDROID_RE="${INJECT_ANDROID_REGEX:-/(Extra|Miui|Oplus|OPlus|Oppo|OnePlus|Sem[A-Z]|SecProduct|Samsung|Knox|Moto)[A-Za-z0-9_\$]*;\$}"
+    declare -A ANDROID_ALLOW=()
+    if [ -f "$PATCH_DIR/inject_android.txt" ]; then
+        while IFS= read -r allow_line; do
+            allow_line="${allow_line%%#*}"
+            allow_line="$(echo "$allow_line" | tr -d '[:space:]' | tr '.' '/')"
+            [ -z "$allow_line" ] && continue
+            allow_line="${allow_line#L}"; allow_line="${allow_line%;}"
+            ANDROID_ALLOW["L${allow_line};"]=1
+        done < "$PATCH_DIR/inject_android.txt"
+    fi
+
+    # returns 0 when the class must NOT be injected
     IS_EXCLUDED_CLASS() {
         local desc="$1"
-        [[ "$desc" =~ ^Landroid/ ]] || [[ "$desc" =~ ^Landroidx/ ]] || \
-        [[ "$desc" =~ ^Ljava/ ]] || [[ "$desc" =~ ^Lkotlin/ ]] || \
-        [[ "$desc" =~ ^Lcom/google/ ]]
-
+        case "$desc" in
+            Landroidx/*|Ljava/*|Lkotlin/*|Lcom/google/*) return 0 ;;
+            Landroid/*)
+                [ "$FW_IS_FULL" -eq 0 ] && return 1
+                [ -n "${ANDROID_ALLOW[$desc]+x}" ] && return 1
+                [[ "$desc" =~ $OEM_ANDROID_RE ]] && return 1
+                return 0 ;;
+        esac
+        return 1
     }
 
 
@@ -244,6 +268,15 @@ if [ -d "$PATCH_SCRIPTS_DIR" ]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+
+# ---- safety net (always on, no AI): neutralize references to classes that cannot exist at runtime ----
+if command -v python3 >/dev/null 2>&1 && [ -f "$SCRIPTS_DIR/classfix.py" ]; then
+    LOG "Neutralizing references to missing classes (NoClassDefFoundError guard)..." 2
+    python3 "$SCRIPTS_DIR/classfix.py" --root "$APK_DECOMPILE_DIR" --report "$OUTPUT_DIR/classfix_report.json" \
+        || LOGW "classfix failed - continuing without it." 2
+else
+    LOGW "classfix skipped (python3 or scripts/classfix.py missing)." 2
+fi
 
 UNSIGNED_APK="$BUILD_TEMP_DIR/unsigned_target.apk"
 FINAL_SIGNED_APK="$OUTPUT_DIR/$(basename "$TARGET_APK" .apk)_ported.apk"
